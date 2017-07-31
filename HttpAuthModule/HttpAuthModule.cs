@@ -14,6 +14,7 @@ namespace HttpAuthModule
         private static bool _enabled = true;
         private static List<IAuthStrategy> _authStrategies = new List<IAuthStrategy>();
         private static Regex _ignorePathRegex = null;
+        private static Regex _ignoreHostRegex = null;
         private static IPAddressRange[] _ignoreIPAddresses = null;
 
         public void Dispose() { }
@@ -67,6 +68,19 @@ namespace HttpAuthModule
                             }
                         }
 
+                        var ignoreHostRegex = Config.Get("IgnoreHostRegex");
+                        if (!string.IsNullOrEmpty(ignoreHostRegex))
+                        {
+                            try
+                            {
+                                _ignoreHostRegex = new Regex(ignoreHostRegex, RegexOptions.Compiled | RegexOptions.IgnoreCase);
+                            }
+                            catch (Exception ex)
+                            {
+                                throw new InvalidOperationException("IgnoreHostRegex is invalid.", ex);
+                            }
+                        }
+
                         var ignoreIPAddresses = Config.Get("ignoreIPAddresses");
                         if (!string.IsNullOrEmpty(ignoreIPAddresses))
                             _ignoreIPAddresses = ignoreIPAddresses.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
@@ -91,11 +105,22 @@ namespace HttpAuthModule
             }
 
             if (_ignorePathRegex != null && _ignorePathRegex.IsMatch(app.Context.Request.RawUrl))
+            {
+                System.Diagnostics.Debug.WriteLine("Ignoring due to host regex");
                 return;
+
+            }
+
+            if (_ignoreHostRegex != null && _ignoreHostRegex.IsMatch(app.Context.Request.Url.Host))
+            {
+                System.Diagnostics.Debug.WriteLine("Ignoring due to host regex");
+                return;
+            }
+            
 
             foreach (var s in _authStrategies)
             {
-#if DEBUG
+#if false 
                 var sw = System.Diagnostics.Stopwatch.StartNew();
                 var result = s.Execute((HttpApplication)sender);
                 sw.Stop();
